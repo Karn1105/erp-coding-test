@@ -1,21 +1,35 @@
-from flask import Flask, jsonify
-import os
-# TODO: Import your database connector here
+import pytest
+from app import app
 
-app = Flask(__name__)
+@pytest.fixture
+def client():
+    app.config['TESTING'] = True
+    with app.test_client() as client:
+        yield client
 
-# TODO: Configure database connection using os.getenv('DATABASE_URL')
+def test_get_alerts_route(client, monkeypatch):
+    # Mock the database connection and cursor to isolate the test
+    class MockCursor:
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+        def execute(self, query):
+            pass
+        def fetchall(self):
+            return [{"id": 1, "name": "Item A", "quantity": 5, "reorder_level": 10, "sku": "SKU123"}]
 
-@app.route('/api/inventory/alerts', methods=['GET'])
-def get_alerts():
-    """
-    TODO: Implement this function.
-    1. Connect to the database.
-    2. Query 'inventory' table where quantity <= reorder_level.
-    3. Return JSON list of products.
-    """
-    # REMOVE THIS LINE AND IMPLEMENT LOGIC
-    return jsonify([]), 500
+    class MockConn:
+        def cursor(self, cursor_factory=None):
+            return MockCursor()
+        def close(self):
+            pass
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    monkeypatch.setattr("app.get_db_connection", lambda: MockConn())
+
+    response = client.get('/api/inventory/alerts')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["name"] == "Item A"
