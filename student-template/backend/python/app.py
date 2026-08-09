@@ -1,21 +1,36 @@
 from flask import Flask, jsonify
-import os
-# TODO: Import your database connector here
+from db import get_db_connection
+from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
-
-# TODO: Configure database connection using os.getenv('DATABASE_URL')
 
 @app.route('/api/inventory/alerts', methods=['GET'])
 def get_alerts():
     """
-    TODO: Implement this function.
-    1. Connect to the database.
+    1. Connect to the database using get_db_connection().
     2. Query 'inventory' table where quantity <= reorder_level.
     3. Return JSON list of products.
     """
-    # REMOVE THIS LINE AND IMPLEMENT LOGIC
-    return jsonify([]), 500
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            query = """
+                SELECT id, name, quantity, reorder_level, sku 
+                FROM inventory 
+                WHERE quantity <= reorder_level;
+            """
+            cursor.execute(query)
+            alerts = cursor.fetchall()
+            
+        return jsonify(alerts), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        if conn:
+            conn.close()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
